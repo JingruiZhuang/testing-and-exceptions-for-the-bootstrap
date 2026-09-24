@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from studio04 import bootstrap_ci, r_squared
+from studio04 import bootstrap_sample, bootstrap_ci, r_squared
 
 
 # ---------------------------------------------------------------------------
@@ -185,3 +185,83 @@ class TestRSquared:
     def test_empty_data_raises(self):
         with pytest.raises(ValueError):
             r_squared(np.empty((0, 2)))
+
+
+# ---------------------------------------------------------------------------
+# bootstrap_sample (Student B)
+# ---------------------------------------------------------------------------
+
+class TestBootstrapSample:
+
+    def test_output_length_and_type(self):
+        np.random.seed(20)
+        stats = bootstrap_sample([1, 2, 3, 4], np.mean, n_bootstrap=25)
+        assert isinstance(stats, np.ndarray)
+        assert stats.shape == (25,)
+        assert np.all((stats >= 1) & (stats <= 4))
+
+    def test_constant_data_stays_constant(self):
+        np.random.seed(21)
+        stats = bootstrap_sample([7, 7, 7], np.mean, n_bootstrap=30)
+        np.testing.assert_array_equal(stats, np.full(30, 7.0))
+
+    def test_samples_rows_with_replacement_and_keeps_pairs_together(self):
+        data = np.column_stack((np.arange(10), 3 * np.arange(10) + 1))
+        seen_duplicate = False
+
+        def check_sample(sample):
+            nonlocal seen_duplicate
+            assert sample.shape == data.shape
+            np.testing.assert_array_equal(sample[:, 1], 3 * sample[:, 0] + 1)
+            seen_duplicate |= len(np.unique(sample[:, 0])) < len(sample)
+            return np.mean(sample[:, 0])
+
+        np.random.seed(22)
+        bootstrap_sample(data, check_sample, n_bootstrap=15)
+        assert seen_duplicate
+
+    def test_reproducible_with_same_seed(self):
+        np.random.seed(23)
+        first = bootstrap_sample([1, 2, 3, 4], np.mean, n_bootstrap=10)
+        np.random.seed(23)
+        second = bootstrap_sample([1, 2, 3, 4], np.mean, n_bootstrap=10)
+        np.testing.assert_array_equal(first, second)
+
+    @pytest.mark.parametrize("data", [[], np.empty((0, 2)), np.zeros((2, 2, 2))])
+    def test_rejects_empty_or_invalid_dimensions(self, data):
+        with pytest.raises(ValueError):
+            bootstrap_sample(data, np.mean, n_bootstrap=5)
+
+    @pytest.mark.parametrize("n_bootstrap", [0, -1])
+    def test_rejects_nonpositive_bootstrap_count(self, n_bootstrap):
+        with pytest.raises(ValueError):
+            bootstrap_sample([1, 2], np.mean, n_bootstrap=n_bootstrap)
+
+    def test_rejects_noncallable_statistic(self):
+        with pytest.raises(TypeError):
+            bootstrap_sample([1, 2], None, n_bootstrap=5)
+
+
+def test_bootstrap_r_squared_confidence_interval_integration():
+    x = np.arange(40, dtype=float)
+    y = 2 * x + np.sin(x) * 3
+    data = np.column_stack((x, y))
+
+    np.random.seed(24)
+    bootstrap_stats = bootstrap_sample(data, r_squared, n_bootstrap=300)
+    lower, upper = bootstrap_ci(bootstrap_stats, alpha=0.05)
+
+    assert bootstrap_stats.shape == (300,)
+    assert 0 <= lower <= upper <= 1
+    assert lower <= r_squared(data) <= upper
+
+
+def test_null_distribution_of_r_squared_has_expected_mean():
+    # Bonus: for independent normal x and y with n observations,
+    # R^2 follows Beta(1/2, (n-2)/2), whose mean is 1/(n-1).
+    rng = np.random.default_rng(25)
+    n = 30
+    observed = np.array([
+        r_squared(rng.normal(size=(n, 2))) for _ in range(2000)
+    ])
+    assert np.mean(observed) == pytest.approx(1 / (n - 1), abs=0.005)

@@ -84,9 +84,19 @@ def bootstrap_ci(bootstrap_stats, alpha=0.05):
     
     Example
     -------
-    TBA
+    >>> bootstrap_ci(np.array([1, 2, 3, 4, 5]), alpha=0.2)
+    (1.4, 4.6)
     
     """
+    if not 0 < alpha < 1:
+        raise ValueError("alpha must be strictly between 0 and 1")
+
+    stats = np.asarray(bootstrap_stats)
+    if stats.size == 0:
+        raise ValueError("bootstrap_stats must not be empty")
+
+    lower, upper = np.quantile(stats, [alpha / 2, 1 - alpha / 2])
+    return float(lower), float(upper)
 
 def r_squared(data):
     """
@@ -106,4 +116,25 @@ def r_squared(data):
     ------
     ValueError
         If data doesn't have exactly 2 columns or < 2 rows
+        or if either column has zero variance (R^2 is undefined)
+
+    Example
+    -------
+    >>> r_squared([[1, 2], [2, 4], [3, 6]])
+    1.0
     """
+    values = np.asarray(data)
+    if values.ndim != 2 or values.shape[1] != 2 or values.shape[0] < 2:
+        raise ValueError("data must have shape (n, 2) with n >= 2")
+
+    x = values[:, 0]
+    y = values[:, 1]
+    x_centered = x - np.mean(x)
+    y_centered = y - np.mean(y)
+    x_ss = np.sum(x_centered ** 2)
+    y_ss = np.sum(y_centered ** 2)
+    if x_ss == 0 or y_ss == 0:
+        raise ValueError("both x and y must have nonzero variance")
+
+    r2 = np.sum(x_centered * y_centered) ** 2 / (x_ss * y_ss)
+    return float(np.clip(r2, 0.0, 1.0))
