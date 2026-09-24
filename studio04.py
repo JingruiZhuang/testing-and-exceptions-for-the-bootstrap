@@ -1,3 +1,5 @@
+import numpy as np
+
 def bootstrap_sample(data, compute_stat, n_bootstrap=1000):
     """
     Generate the bootstrap distribution of a statistic
@@ -28,9 +30,35 @@ def bootstrap_sample(data, compute_stat, n_bootstrap=1000):
 
     Example
     -------
-    TBA
+    >>> import numpy as np
+    >>> np.random.seed(0)
+    >>> data = np.random.normal(size=50)
+    >>> stats = bootstrap_sample(data, np.mean, n_bootstrap=500)
+    >>> stats.shape
+    (500,)
 
     """
+    if not callable(compute_stat):
+        raise TypeError("compute_stat must be callable")
+
+    if isinstance(n_bootstrap, bool) or not isinstance(n_bootstrap, (int, np.integer)):
+        raise TypeError("n_bootstrap must be an integer")
+    if n_bootstrap < 1:
+        raise ValueError("n_bootstrap must be at least 1")
+
+    data = np.asarray(data)
+    if data.ndim not in (1, 2):
+        raise ValueError("data must be a 1D array or a 2D array of shape (n, p)")
+    n = data.shape[0]
+    if data.size == 0 or n == 0:
+        raise ValueError("data must not be empty")
+
+    # Resample rows with replacement; for 2D data this keeps (x, y) pairs together
+    stats = np.empty(n_bootstrap)
+    for b in range(n_bootstrap):
+        idx = np.random.randint(0, n, size=n)
+        stats[b] = compute_stat(data[idx])
+    return stats
 
 def bootstrap_ci(bootstrap_stats, alpha=0.05):
     """
