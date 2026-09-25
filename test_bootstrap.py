@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from studio04 import bootstrap_sample, bootstrap_ci, r_squared
+from bootstrap import bootstrap_sample, bootstrap_ci, r_squared
 
 
 # ---------------------------------------------------------------------------
